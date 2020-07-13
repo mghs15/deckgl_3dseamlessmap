@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset='utf-8' />
+<title>Railway Map</title>
+<meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+<script src="https://unpkg.com/deck.gl@^8.1.0/dist.min.js"></script>
+<script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.11.1/mapbox-gl.js'></script>
+<script type="text/javascript">
+  const {MapboxLayer, ScatterplotLayer, PathLayer, TerrainLayer, PolygonLayer} = deck;
+</script>
+<script src='https://unpkg.com/@turf/turf/turf.min.js'></script>
+<script src='./getGeojson.js'></script>
+<link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.11.1/mapbox-gl.css' rel='stylesheet' />
+<style>
+body { margin:0; padding:0; }
+#map {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+}
+#menu {
+    position: absolute;
+    left:  0.5em;
+    top: 0.5em; 
+    padding: 0.2em 0.5em;
+    margin: 0 0;
+    background: #eeeeee;
+    box-shadow: 0px 0px 0px 5px #eeeeee;
+    border: dashed 3px #dddddd;
+    font-family: 'Open Sans', sans-serif;
+    width: 90%;
+    max-width: 250px;
+}
+button.local {
+  display: block;
+  text-align:center;
+  background: #dddddd;
+  padding 0 0.5em 0 0.5em;
+  border: solid 2px #ddd;
+  border-radius: 3px;
+  margin: 0px 0px 5px 0px;
+  line-height: 1.5em;
+  font-size: 1em;
+  width: 100%;
+}
+#download {
+  display: block;
+  text-align:center;
+  background: #dddddd;
+  padding 0 0.5em 0 0.5em;
+  border: solid 2px #ddd;
+  border-radius: 3px;
+  margin: 0px 0px 5px 0px;
+  line-height: 1.5em;
+  font-size: 1em;
+  width: 100%;
+}
+
+</style>
+</head>
+<body>
+
+
+<div id='map'></div>
+<div id='menu'>
+  <button type="button" class="local" name="colchange" onclick="action()" >3D</button>
+  <button type="button" class="local" name="colchange" onclick="addTerrain()" >地形を表示</button>
+  <button type="button" class="local" name="colchange" onclick="addTileboundary()" >タイル図郭を表示</button>
+  <div><a id="download">取得データのダウンロード</a></div>
+  <div id="message"></div>
+</div>
+<script>
+
+/*************************************************/
+/*Mapbox 関係設定                                */
+/*************************************************/
+var map = new mapboxgl.Map({
+  container: 'map', // container id
+  hash: true, //add #position on URL
+  style: './style.json', // stylesheet location
+  center: [139.78148, 35.768793], // starting position [lng, lat]
+  zoom: 9, // starting zoom
+  minZoom: 6,
+  maxZoom: 15.99,
+  localIdeographFontFamily: ['MS Gothic', 'Hiragino Kaku Gothic Pro', 'sans-serif']
+});
+
+
+map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+map.addControl(new mapboxgl.ScaleControl() );
+
+map.showTileBoundaries = true;
+
+var addTileboundary = function(){
+  map.showTileBoundaries = !map.showTileBoundaries;
+}
+
+/*************************************************/
+/*DeckGL 関係設定                                */
+/*************************************************/
+/*************************************************/
+/*データ取得 関係設定                            */
+/*************************************************/
+
+//表示範囲をタイル枚数に換算
+
+var long2tile = function(lon,zoom) { return (Math.floor((lon+180)/360*Math.pow(2,zoom))); }
+
+var lat2tile = function(lat,zoom)  { return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); }
+
+var checkLoadTiles = function(){
+
+  var zoom = Math.floor(map.getZoom());
+  var bounds = map.getBounds();
+  
+  var ne_lat = bounds._ne.lat;
+  var ne_lon = bounds._ne.lng;
+  var sw_lat = bounds._sw.lat;
+  var sw_lon = bounds._sw.lng;
+  
+  var tileX1 = long2tile(ne_lon,zoom);
+  var tileX2 = long2tile(sw_lon,zoom);
+  
+  var tileY1 = lat2tile(ne_lat,zoom);
+  var tileY2 = lat2tile(sw_lat,zoom);
+  
+  var X = 1 + tileX1 - tileX2;
+  var Y = 1 + tileY2 - tileY1;
+  
+  var tileCount = X * Y;
+  
+  return tileCount;
+}
+
+
+//GeoJSONとして追加するレイヤ用にSourceを用意
+map.on('load', function(){
+  map.addSource('building3d', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: []
+      }
+  });
+
+  map.addSource('waterarea3d', {
+      type: 'geojson',
+      data: {
+        type: 'FeatureCollection',
+        features: []
+      }
+  });
+});
+
+//ボタンクリック時の処理
+var action = function(){
+    
+    //エラー処理
+    var styleLoadStatus = map.isStyleLoaded();
+    if(!styleLoadStatus){
+      alert("まだ、スタイルが読み込めていません。");
+      return;
+    }
+    
+    var tmpzl = map.getZoom();
+    var tileCount = checkLoadTiles();
+    console.log(tileCount);
+    if(tileCount > 6){
+      alert("表示範囲が広すぎます。");
+      return;
+    }else if(tileCount > 2 && tmpzl < 15){
+      alert("表示範囲が広すぎます。");
+      return;
+    }
+    
+    
+    var center = map.getCenter();
+    var tileX = long2tile(center.lng, 15);
+    var tileY = lat2tile(center.lat, 15);
+    
+    var filename = "15-" + tileX + "-" + tileY + "-" + tileCount + ".json";
+    
+    
+    //データの読み込みと加工
+    console.log("等高線データを取得中...");
+    var contour = getGeojson("LineString", "contour", "gsibv-vectortile-source-1-4-16").contents3d;
+    if(contour.length == 0){
+      alert("データ取得範囲に等高線データがありませんでした。");
+      document.getElementById("message").innerText = "";
+      return;
+    }
+    console.log("道路データを取得中...");
+    var road = getGeojson("LineString", "road", "gsibv-vectortile-source-1-4-16").contents3d;
+    console.log("鉄道データを取得中...");
+    var railway = getGeojson("LineString", "railway", "gsibv-vectortile-source-1-4-16").contents3d;
+    console.log("建物データを取得中...");
+    var building = getGeojson("Polygon", "building", "gsibv-vectortile-source-1-4-16").geojson;
+    
+//    var waterarea = getGeojson("Polygon", "waterarea", "gsibv-vectortile-source-1-4-16").geojson;
+    
+    
+    //ダウンロード準備
+    var resutls_obj = {
+      "contour": contour,
+      "road": road,
+      "railway": railway,
+      "building": building
+    };
+    var results_string = JSON.stringify(resutls_obj, null, 4);
+    setdownload(results_string, filename, 'download'); //ダウンロード準備
+    
+    
+    //道路データの加工
+    for(i in road){
+
+        var f = road[i];
+        
+        var roadOpacity = 255;
+        if(f.properties["ftCode"] == 2704 || f.properties["ftCode"] == 2714 || f.properties["ftCode"] == 2724 || f.properties["ftCode"] == 2734  || f.properties["ftCode"] == 52702 || f.properties["ftCode"] == 52704 ){
+          roadOpacity = 100;
+        }
+        
+        var adjust = 5;
+        var color = [255,255,255,roadOpacity];
+        if(f.properties["motorway"] == 1){
+          color = [100,195,115,roadOpacity];
+          adjust = adjust + 0.3;
+        }else if (f.properties["rdCtg"] == 0 || f.properties["rdCtg"] == 3){
+          color = [235,130,120,roadOpacity];
+          adjust = adjust + 0.2;
+        }else if (f.properties["rdCtg"] == 1){
+          color = [255,255,100,roadOpacity];
+          adjust = adjust + 0.1;
+        }
+        
+        var width = 2;
+        
+        if(f.properties["rnkWidth"] < 5){
+          width = width + f.properties["rnkWidth"];
+        }
+        
+        road[i].properties["color"] = color;
+        road[i].properties["width"] = width;
+        
+        for(j in road[i].path){
+          road[i].path[j][2] = road[i].path[j][2] + adjust; //見た目の関係で少し高くする。
+        }
+        
+    }
+    
+    //鉄道データの加工
+    for(i in railway){
+        
+        for(j in railway[i].path){
+          railway[i].path[j][2] = railway[i].path[j][2] + 5.3; //見た目の関係で少し高くする。
+        }
+        
+    }
+    
+    //建物データの加工
+    for(i in building.features){
+        
+        var f = building.features[i];
+        
+        var height = f.properties["alti"];
+        
+        var color = 'hsl(0, 50%, 80%)';
+        var opacity = 1;
+        
+        var ftCode = f.properties["ftCode"];
+        if(ftCode == 3101 || ftCode == 3111 || ftCode == 4302){
+          height = height + 10;
+          color = (ftCode == 3111) ? 'hsl(0, 100%, 95%)' : color;
+        }else if(ftCode == 3102 || ftCode == 3112){
+          height = height + 40;
+          color = (ftCode == 3112) ? 'hsl(30, 100%, 95%)' : 'hsl(30, 100%, 80%)';
+        }else if(ftCode == 3103 || ftCode == 4301){
+          height = height + 100;
+          color = 'hsl(210, 100%, 90%)';
+        }
+        
+        building.features[i].properties["height"] = height;
+        building.features[i].properties["baseHeight"] = f.properties["alti"];
+        building.features[i].properties["color"] = color;
+        
+    }
+    
+    //Custom(DeckGL)利用--------------------------------------------------
+    //道路
+    if(map.getLayer('path-layer-road')){
+      map.removeLayer('path-layer-road');
+    }
+    const myRoadDeckLayer = new MapboxLayer({
+      type: PathLayer,
+      id: 'path-layer-road',
+      data: road,
+      pickable: true,
+      widthScale: 3,
+      widthMinPixels: 1,
+      getPath: d => d.path,
+      getColor: d => d.properties["color"],
+      getWidth: d => d.properties["width"]
+    });
+    
+    //鉄道
+    if(map.getLayer('path-layer-railway')){
+      map.removeLayer('path-layer-railway');
+    }
+    const myRailwayDeckLayer = new MapboxLayer({
+      type: PathLayer,
+      id: 'path-layer-railway',
+      data: railway,
+      pickable: true,
+      widthScale: 1,
+      widthMinPixels: 2,
+      getPath: d => d.path,
+      getColor: d => [
+        0,
+        (!d.properties.staCode || d.properties.staCode == 0) ? 255 : 100,
+        255,
+        (d.properties.railState == 100 || d.properties.railState == 300 || d.properties.railState == 2 || d.properties.railState == 3) ? 50 : 255
+      ],
+      getWidth: d => (!d.properties.staCode || d.properties.staCode == 0) ? 2 : 4
+    });
+    
+    
+    //等高線
+    if(map.getLayer('path-layer-contour')){
+      map.removeLayer('path-layer-contour');
+    }
+    const myContourDeckLayer = new MapboxLayer({
+      id: 'path-layer-contour',
+      type: PathLayer,
+      data: contour,
+      pickable: true,
+      widthScale: 1,
+      widthMinPixels: 1,
+      getPath: d => d.path,
+      getColor: d => [200,160,60],
+      getWidth: d => 2
+    });
+    
+    
+    /*Path Layer*/
+    map.addLayer(myRoadDeckLayer);
+    map.addLayer(myRailwayDeckLayer);
+    map.addLayer(myContourDeckLayer);
+    
+    
+    //FillExtrusion利用--------------------------------------------------
+    //建物
+    if(building){
+      if(map.getLayer('building-fillextrusion')){
+          map.removeLayer('building-fillextrusion');
+      }
+      map.getSource('building3d').setData(
+          building
+      );
+      map.addLayer({
+          id: 'building-fillextrusion',
+          type: 'fill-extrusion',
+          source: 'building3d',
+          paint: {
+            "fill-extrusion-color": ["get", "color"],
+            "fill-extrusion-height": ["get", "height"],
+            "fill-extrusion-base": ["get", "baseHeight"]
+          },
+          layout: {
+          }
+      });
+    }
+    
+    /*
+    console.log(waterarea);
+    
+    //水域
+    if(waterarea){
+      if(map.getLayer('waterarea-fillextrusion')){
+          map.removeLayer('waterarea-fillextrusion');
+      }
+      map.getSource('waterarea3d').setData(
+          waterarea
+      );
+      map.addLayer({
+          id: 'waterarea-fillextrusion',
+          type: 'fill-extrusion',
+          source: 'waterarea3d',
+          paint: {
+            'fill-extrusion-color': 'rgb(190,210,255)',
+            "fill-extrusion-height": ["get", "alti"],
+            "fill-extrusion-base": ["-", ["get", "alti"], 1]
+          },
+          layout: {
+          }
+      });
+    }
+    */
+    
+}
+
+
+//地形データ
+var isTerrainShow = false;
+
+var addTerrain = function(){
+    if(!isTerrainShow){
+      
+      //エラー処理
+      var styleLoadStatus = map.isStyleLoaded();
+      if(!styleLoadStatus){
+        alert("まだ、スタイルが読み込めていません。");
+      }
+      
+      if(map.getZoom() > 14.5){
+        alert("地形表示はZL14.5未満でできます。");
+        return;
+      }
+    
+      //地形
+      if(map.getLayer('terrain-layer')){
+        map.removeLayer('terrain-layer');
+      }
+      const myTerrainDeckLayer = new MapboxLayer({
+        id: 'terrain-layer',
+        type: TerrainLayer,
+        elevationDecoder: {
+          rScaler: Math.pow(2,16)*0.01,
+          gScaler: Math.pow(2,8)*0.01,
+          bScaler: 0.01,
+          offset: 0
+        },
+        elevationData: 'https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png',
+        texture: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
+        color: [100,155,100]
+      });    
+      map.addLayer(myTerrainDeckLayer);
+    }else{
+      if(map.getLayer('terrain-layer')){
+        map.removeLayer('terrain-layer');
+      }
+    }
+    
+    isTerrainShow = !isTerrainShow;
+}
+
+/*************************************************/
+/*ダウンロードの処理                               */
+/*************************************************/
+
+var setdownload = function(string, filename, container){
+      var blob = new Blob([string], {type: 'text\/plain'});
+      var url = URL.createObjectURL(blob);
+      const a = document.getElementById(container);
+      a.href = window.URL.createObjectURL(blob);
+      a.download = filename;
+}
+
+
+</script>
+ 
+</body>
+</html>
