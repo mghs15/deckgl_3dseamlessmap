@@ -30,7 +30,7 @@ body { margin:0; padding:0; }
     border: dashed 3px #dddddd;
     font-family: 'Open Sans', sans-serif;
     width: 90%;
-    max-width: 250px;
+    max-width: 150px;
 }
 button.local {
   display: block;
@@ -63,15 +63,11 @@ button.local {
 
 
 <div id='map'></div>
-<!--
 <div id='menu'>
-  <button type="button" class="local" name="colchange" onclick="action()" >3D</button>
-  <button type="button" class="local" name="colchange" onclick="addTerrain()" >地形を表示</button>
-  <button type="button" class="local" name="colchange" onclick="addTileboundary()" >タイル図郭を表示</button>
-  <div><a id="download">取得データのダウンロード</a></div>
+  <button type="button" class="local" name="colchange" onclick="addTerrain()" >地形</button>
+  <button type="button" class="local" name="colchange" onclick="addTileboundary()" >タイル図郭</button>
   <div id="message"></div>
 </div>
--->
 <script>
 
 /*************************************************/
