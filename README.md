@@ -2,9 +2,15 @@
 地理院地図Vectorのデータを、deck.glで3Dっぽくシームレスに表示するサンプル。
 
 ## 3Dサンプル
-筑波山周辺の3Dデータを表示します。1度に表示されるのは、表示位置周辺のZL15のタイル4枚相当のデータです。
+筑波山周辺の3Dデータを表示します。
 
 https://mghs15.github.io/deckgl_3dseamlessmap/index.html
+
+大きなデータがダウンロードされるのでご注意ください。
+以下は、1度に表示されるデータを表示位置周辺のZL15のタイル4枚相当に制限したものです。
+
+https://mghs15.github.io/deckgl_3dseamlessmap/index_limit.html
+
 
 ## 作成
 以下のレポジトリをベースに、3D用のデータをタイル状に分割し、表示範囲に合わせて読み込むようにした地図。
@@ -22,6 +28,7 @@ https://mghs15.github.io/deckgl_3dseamlessmap/indexGet.html
 
 * {z}、{x}、{y}は、XYZタイル（Slippy map tilenames）方式に準ずる。
 * 現状、サンプルサイトでは、全てのZLで、{z}=15を読み込む。
+
 
 ## 参考にした資料
 ### データ

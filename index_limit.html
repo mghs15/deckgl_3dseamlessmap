@@ -131,23 +131,11 @@ var loadedTileList = [];
 
 //移動時に読み込み処理
 map.on('moveend', function(){
-  refleshTiledJson();
-});
-
-
-//タイルの削除と追加
-var refleshTiledJson = function(){
     
-    var zl = 15; //3Dデータが存在するZL
-    
-    var tmpzl = map.getZoom();
-    
-    var minzoom = 14; //3Dデータを読み込む最小ZL
-    
-    /*
     var center = map.getCenter();
+    var zl = 15;
     var tileX = long2tile(center.lng, zl);
-    var tileY = lat2tile(center.lat, zl);
+    var tileY = lat2tile(center.lat, zl); 
     
     var tileXpxInTile = tileX - Math.floor(tileX);
     if(tileXpxInTile < 0.5){
@@ -173,49 +161,24 @@ var refleshTiledJson = function(){
     var filename_se = zl + "-" + tileXe + "-" + tileYs + "-" + 1 + ".json";
     
     var newTiledJsonList = [filename_nw, filename_ne, filename_sw, filename_se];
-    */
     
-    var newTiledJsonList = [];
-    
-    if(tmpzl >= minzoom){
-    
-      var bounds = map.getBounds();
-      
-      var tileXw = Math.floor(long2tile(bounds._sw.lng, zl));
-      var tileXe = Math.floor(long2tile(bounds._ne.lng, zl));
-      
-      var tileYn = Math.floor(lat2tile(bounds._ne.lat, zl));
-      var tileYs = Math.floor(lat2tile(bounds._sw.lat, zl));
-      
-      console.log(tileXw, tileXe, tileYn, tileYs, tmpzl);
-      
-      for(var i=tileXw; i <= tileXe; i++){
-        for(var j=tileYn; j <= tileYs; j++){
-          var filename = zl + "-" + i + "-" + j + "-" + 1 + ".json";
-          newTiledJsonList.push(filename);
-        }
-      }
-    
-    }
-    
-    //タイルの削除と追加
     console.log(loadedTileList);
     
     for(i in loadedTileList){
-      if(!newTiledJsonList.includes(loadedTileList[i]) || tmpzl < minzoom){  // loadedTileList[i] が newTiledJsonList になかったら
+      if(!newTiledJsonList.includes(loadedTileList[i])){  // loadedTileList[i] が newTiledJsonList になかったら
         removeTiledJson(loadedTileList[i]);
       }
     }
     
     for(i in newTiledJsonList){
-      if(!loadedTileList.includes(newTiledJsonList[i]) && tmpzl >= minzoom){  // newTiledJsonList[i] が loadedTileList になかったら
-        loadTiledJson(newTiledJsonList[i]); //非同期処理
+      if(!loadedTileList.includes(newTiledJsonList[i])){  // newTiledJsonList[i] が loadedTileList になかったら
+        loadTiledJson(newTiledJsonList[i]);
       }
     }
     
     loadedTileList = newTiledJsonList;
     console.log(loadedTileList);
-};
+});
 
 //データを削除
 var removeTiledJson = function(filename){
@@ -271,7 +234,6 @@ var loadTiledJson = function(filename){
     
 //    var tiledjson = loadJSON(filepath);
     
-    //非同期処理で呼び出す
     var xhr = new XMLHttpRequest();
     xhr.open('GET', filepath, true);
     xhr.send(null);
@@ -285,9 +247,7 @@ var loadTiledJson = function(filename){
       if(xhr.status != 200 && xhr.status != 304){
         return;
       }
-      
-      
-      //データ読み込み
+    
       var tiledjson = JSON.parse(xhr.responseText);
       
       if(tiledjson.length < 1){
@@ -295,13 +255,14 @@ var loadTiledJson = function(filename){
         return;
       }
       
+      
+      
       var contour = tiledjson.contour;
       var road = tiledjson.road;
       var railway = tiledjson.railway;
       var building = tiledjson.building;
       
       loadedTileList.push(filename);
-      
       
       //道路データの加工
       for(i in road){
@@ -377,7 +338,6 @@ var loadTiledJson = function(filename){
           building.features[i].properties["color"] = color;
       }
       
-      //IDの準備
       var buildingSourceID = 'fillextrusion-source-building-' + filename;
       
       if(map.getSource(buildingSourceID)){
