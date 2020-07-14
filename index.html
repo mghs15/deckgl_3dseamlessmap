@@ -280,11 +280,11 @@ var loadTiledJson = function(filename){
     
     xhr.onload = function () {
     
-    console.log(filename, "を追加");
-    
       if(xhr.status != 200 && xhr.status != 304){
         return;
       }
+      
+      console.log(filename, "を追加");
       
       
       //データ読み込み
