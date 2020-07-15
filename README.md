@@ -30,6 +30,11 @@ https://mghs15.github.io/deckgl_3dseamlessmap/indexGet.html
 * 現状、サンプルサイトでは、全てのZLで、{z}=15を読み込む。
 
 
+※データ自体は以下のレポジトリに移動しました。
+
+https://github.com/mghs15/3dTiledJSON
+
+
 ## 参考にした資料
 ### データ
 * 国土地理院 地理院地図Vector https://maps.gsi.go.jp/vector/
