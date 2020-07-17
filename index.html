@@ -23,23 +23,24 @@ body { margin:0; padding:0; }
     position: absolute;
     left:  0.5em;
     top: 0.5em; 
-    padding: 0.2em 0.5em;
+    padding: 0.1em 0.2em;
     margin: 0 0;
     background: #eeeeee;
-    box-shadow: 0px 0px 0px 5px #eeeeee;
-    border: dashed 3px #dddddd;
+    box-shadow: 0px 0px 0px 3px #eeeeee;
+    border: dashed 2px #dddddd;
     font-family: 'Open Sans', sans-serif;
     width: 90%;
-    max-width: 150px;
+    max-width: 100px;
+    border-radius: 3px;
 }
 button.local {
   display: block;
   text-align:center;
   background: #dddddd;
-  padding 0 0.5em 0 0.5em;
+  padding 0 0.25em 0 0.25em;
   border: solid 2px #ddd;
   border-radius: 3px;
-  margin: 0px 0px 5px 0px;
+  margin: 2px 0px 2px 0px;
   line-height: 1.5em;
   font-size: 1em;
   width: 100%;
@@ -64,8 +65,15 @@ button.local {
 
 <div id='map'></div>
 <div id='menu'>
-  <button type="button" class="local" name="colchange" onclick="addTerrain()" >地形</button>
-  <button type="button" class="local" name="colchange" onclick="addTileboundary()" >タイル図郭</button>
+  <button type="button" class="local" name="terrain" onclick="addTerrain()" >地形</button>
+  
+  <button type="button" class="local" name="road" onclick="selectRoad()" >道路</button>
+  <button type="button" class="local" name="railway" onclick="selectRailway()" >鉄道</button>
+  <button type="button" class="local" name="building" onclick="selectBuilding()" >建物</button>
+  <button type="button" class="local" name="contour" onclick="selectContour()" >等高線</button>
+  
+  <button type="button" class="local" name="tileboundary" onclick="addTileboundary()" >タイル境界</button>
+  
   <div id="message"></div>
 </div>
 <script>
@@ -115,11 +123,40 @@ var loadJSON = function(path){
   return data;
 }
 
+
 /*************************************************/
-/*DeckGL 関係設定                                */
+/*データ選択                                     */
 /*************************************************/
+
+var isShowRoad = true;
+var isShowRailway = true;
+var isShowContour = true;
+var isShowBuilding = true;
+
+var selectRoad = function(){
+  isShowRoad = !isShowRoad;
+  refleshTiledJson();
+}
+
+var selectRailway = function(){
+  isShowRailway = !isShowRailway;
+  refleshTiledJson();
+}
+
+var selectContour = function(){
+  isShowContour = !isShowContour;
+  refleshTiledJson();
+}
+
+var selectBuilding = function(){
+  isShowBuilding = !isShowBuilding;
+  refleshTiledJson();
+}
+
+
+
 /*************************************************/
-/*データ取得 関係設定                            */
+/*表示範囲に合わせて表示データを管理             */
 /*************************************************/
 
 //小数点以下で出力
@@ -131,49 +168,17 @@ var loadedTileList = [];
 
 //移動時に読み込み処理
 map.on('moveend', function(){
-  refleshTiledJson();
+  changeTiledJson();
 });
 
-
-//タイルの削除と追加
-var refleshTiledJson = function(){
+//表示タイルリストの更新とそれに合わせたタイルの削除と追加
+var changeTiledJson = function(){
     
     var zl = 15; //3Dデータが存在するZL
     
     var tmpzl = map.getZoom();
     
     var minzoom = 14; //3Dデータを読み込む最小ZL
-    
-    /*
-    var center = map.getCenter();
-    var tileX = long2tile(center.lng, zl);
-    var tileY = lat2tile(center.lat, zl);
-    
-    var tileXpxInTile = tileX - Math.floor(tileX);
-    if(tileXpxInTile < 0.5){
-      var tileXw = Math.floor(tileX) - 1;
-      var tileXe = Math.floor(tileX);
-    }else{
-      var tileXw = Math.floor(tileX);
-      var tileXe = Math.floor(tileX) + 1;
-    }
-    
-    var tileYpxInTile = tileY - Math.floor(tileY);
-    if(tileYpxInTile < 0.5){
-      var tileYn = Math.floor(tileY) - 1;
-      var tileYs = Math.floor(tileY);
-    }else{
-      var tileYn = Math.floor(tileY);
-      var tileYs = Math.floor(tileY) + 1;
-    }
-    
-    var filename_nw = zl + "-" + tileXw + "-" + tileYn + "-" + 1 + ".json";
-    var filename_ne = zl + "-" + tileXe + "-" + tileYn + "-" + 1 + ".json";
-    var filename_sw = zl + "-" + tileXw + "-" + tileYs + "-" + 1 + ".json";
-    var filename_se = zl + "-" + tileXe + "-" + tileYs + "-" + 1 + ".json";
-    
-    var newTiledJsonList = [filename_nw, filename_ne, filename_sw, filename_se];
-    */
     
     var newTiledJsonList = [];
     
@@ -217,6 +222,25 @@ var refleshTiledJson = function(){
     console.log(loadedTileList);
 };
 
+
+//タイルのみ更新（削除と追加）
+var refleshTiledJson = function(){
+    
+    for(i in loadedTileList){
+      removeTiledJson(loadedTileList[i]);
+    }
+    
+    for(i in loadedTileList){
+      loadTiledJson(loadedTileList[i]); //非同期処理
+    }
+    
+};
+
+/*************************************************/
+/*DeckGL レイヤ関係設定                          */
+/*************************************************/
+
+
 //データを削除
 var removeTiledJson = function(filename){
     
@@ -240,7 +264,7 @@ var removeTiledJson = function(filename){
     }
 
     if(map.getLayer(buildingLayerID)){
-        map.removeLayer(buildingLayerID);
+      map.removeLayer(buildingLayerID);
     }
 
     //Sourceはレイヤを削除してから削除する。
@@ -303,164 +327,179 @@ var loadTiledJson = function(filename){
       loadedTileList.push(filename);
       
       
-      //道路データの加工
-      for(i in road){
-
-          var f = road[i];
-          
-          var roadOpacity = 255;
-          if(f.properties["ftCode"] == 2704 || f.properties["ftCode"] == 2714 || f.properties["ftCode"] == 2724 || f.properties["ftCode"] == 2734  || f.properties["ftCode"] == 52702 || f.properties["ftCode"] == 52704 ){
-            roadOpacity = 100;
-          }
-          
-          var adjust = 5;
-          var color = [255,255,255,roadOpacity];
-          if(f.properties["motorway"] == 1){
-            color = [100,195,115,roadOpacity];
-            adjust = adjust + 0.3;
-          }else if (f.properties["rdCtg"] == 0 || f.properties["rdCtg"] == 3){
-            color = [235,130,120,roadOpacity];
-            adjust = adjust + 0.2;
-          }else if (f.properties["rdCtg"] == 1){
-            color = [255,255,100,roadOpacity];
-            adjust = adjust + 0.1;
-          }
-          
-          var width = 2;
-          
-          if(f.properties["rnkWidth"] < 5){
-            width = width + f.properties["rnkWidth"];
-          }
-          
-          road[i].properties["color"] = color;
-          road[i].properties["width"] = width;
-          
-          for(j in road[i].path){
-            road[i].path[j][2] = road[i].path[j][2] + adjust; //見た目の関係で少し高くする。
-          }
-          
-      }
-      
-      //鉄道データの加工
-      for(i in railway){
-          
-          for(j in railway[i].path){
-            railway[i].path[j][2] = railway[i].path[j][2] + 5.3; //見た目の関係で少し高くする。
-          }
-          
-      }
-      
-      //建物データの加工
-      for(i in building.features){
-          
-          var f = building.features[i];
-          
-          var height = f.properties["alti"];
-          
-          var color = 'hsl(0, 50%, 80%)';
-          var opacity = 1;
-          
-          var ftCode = f.properties["ftCode"];
-          if(ftCode == 3101 || ftCode == 3111 || ftCode == 4302){
-            height = height + 10;
-            color = (ftCode == 3111) ? 'hsl(0, 100%, 95%)' : color;
-          }else if(ftCode == 3102 || ftCode == 3112){
-            height = height + 40;
-            color = (ftCode == 3112) ? 'hsl(30, 100%, 95%)' : 'hsl(30, 100%, 80%)';
-          }else if(ftCode == 3103 || ftCode == 4301){
-            height = height + 100;
-            color = 'hsl(210, 100%, 90%)';
-          }
-          
-          building.features[i].properties["height"] = height;
-          building.features[i].properties["baseHeight"] = f.properties["alti"];
-          building.features[i].properties["color"] = color;
-      }
-      
       //IDの準備
       var buildingSourceID = 'fillextrusion-source-building-' + filename;
-      
-      if(map.getSource(buildingSourceID)){
-        map.removeSource(buildingSourceID);
-      }
-      map.addSource(buildingSourceID, {
-          type: 'geojson',
-          data: building
-      });
-      
+        
       var roadLayerID = 'path-layer-road-' + filename;
       var railwayLayerID = 'path-layer-railway-' + filename;
       var contourLayerID = 'path-layer-contour' + filename;
       var buildingLayerID = 'fillextrusion-layer-building-' + filename;
       
+      
       //Custom(DeckGL)利用--------------------------------------------------
+      
       //道路
-      if(map.getLayer(roadLayerID)){
-        map.removeLayer(roadLayerID);
+      if(road && isShowRoad){
+        //道路データの加工
+        for(i in road){
+
+            var f = road[i];
+            
+            var roadOpacity = 255;
+            if(f.properties["ftCode"] == 2704 || f.properties["ftCode"] == 2714 || f.properties["ftCode"] == 2724 || f.properties["ftCode"] == 2734  || f.properties["ftCode"] == 52702 || f.properties["ftCode"] == 52704 ){
+              roadOpacity = 100;
+            }
+            
+            var adjust = 5;
+            var color = [255,255,255,roadOpacity];
+            if(f.properties["motorway"] == 1){
+              color = [100,195,115,roadOpacity];
+              adjust = adjust + 0.3;
+            }else if (f.properties["rdCtg"] == 0 || f.properties["rdCtg"] == 3){
+              color = [235,130,120,roadOpacity];
+              adjust = adjust + 0.2;
+            }else if (f.properties["rdCtg"] == 1){
+              color = [255,255,100,roadOpacity];
+              adjust = adjust + 0.1;
+            }
+            
+            var width = 2;
+            
+            if(f.properties["rnkWidth"] < 5){
+              width = width + f.properties["rnkWidth"];
+            }
+            
+            road[i].properties["color"] = color;
+            road[i].properties["width"] = width;
+            
+            for(j in road[i].path){
+              road[i].path[j][2] = road[i].path[j][2] + adjust; //見た目の関係で少し高くする。
+            }
+            
+        }
+        
+        if(map.getLayer(roadLayerID)){
+          map.removeLayer(roadLayerID);
+        }
+        const myRoadDeckLayer = new MapboxLayer({
+          type: PathLayer,
+          id: roadLayerID,
+          data: road,
+          pickable: true,
+          widthScale: 3,
+          widthMinPixels: 1,
+          getPath: d => d.path,
+          getColor: d => d.properties["color"],
+          getWidth: d => d.properties["width"]
+        });
+        map.addLayer(myRoadDeckLayer);
       }
-      const myRoadDeckLayer = new MapboxLayer({
-        type: PathLayer,
-        id: roadLayerID,
-        data: road,
-        pickable: true,
-        widthScale: 3,
-        widthMinPixels: 1,
-        getPath: d => d.path,
-        getColor: d => d.properties["color"],
-        getWidth: d => d.properties["width"]
-      });
+      
       
       //鉄道
-      if(map.getLayer(railwayLayerID)){
-        map.removeLayer(railwayLayerID);
+      if(railway && isShowRailway){
+        //鉄道データの加工
+        for(i in railway){
+            
+            for(j in railway[i].path){
+              railway[i].path[j][2] = railway[i].path[j][2] + 5.3; //見た目の関係で少し高くする。
+            }
+            
+        }
+        
+        if(map.getLayer(railwayLayerID)){
+          map.removeLayer(railwayLayerID);
+        }
+        const myRailwayDeckLayer = new MapboxLayer({
+          type: PathLayer,
+          id: railwayLayerID,
+          data: railway,
+          pickable: true,
+          widthScale: 1,
+          widthMinPixels: 2,
+          getPath: d => d.path,
+          getColor: d => [
+            0,
+            (!d.properties.staCode || d.properties.staCode == 0) ? 255 : 100,
+            255,
+            (d.properties.railState == 100 || d.properties.railState == 300 || d.properties.railState == 2 || d.properties.railState == 3) ? 50 : 255
+          ],
+          getWidth: d => (!d.properties.staCode || d.properties.staCode == 0) ? 2 : 4
+        });
+        map.addLayer(myRailwayDeckLayer);
       }
-      const myRailwayDeckLayer = new MapboxLayer({
-        type: PathLayer,
-        id: railwayLayerID,
-        data: railway,
-        pickable: true,
-        widthScale: 1,
-        widthMinPixels: 2,
-        getPath: d => d.path,
-        getColor: d => [
-          0,
-          (!d.properties.staCode || d.properties.staCode == 0) ? 255 : 100,
-          255,
-          (d.properties.railState == 100 || d.properties.railState == 300 || d.properties.railState == 2 || d.properties.railState == 3) ? 50 : 255
-        ],
-        getWidth: d => (!d.properties.staCode || d.properties.staCode == 0) ? 2 : 4
-      });
       
       
       //等高線
-      if(map.getLayer(contourLayerID)){
-        map.removeLayer(contourLayerID);
+      if(contour && isShowContour){
+        
+        if(map.getLayer(contourLayerID)){
+          map.removeLayer(contourLayerID);
+        }
+        const myContourDeckLayer = new MapboxLayer({
+          id: contourLayerID,
+          type: PathLayer,
+          data: contour,
+          pickable: true,
+          widthScale: 1,
+          widthMinPixels: 1,
+          getPath: d => d.path,
+          getColor: d => [200,160,60],
+          getWidth: d => 2
+        });
+        map.addLayer(myContourDeckLayer);
       }
-      const myContourDeckLayer = new MapboxLayer({
-        id: contourLayerID,
-        type: PathLayer,
-        data: contour,
-        pickable: true,
-        widthScale: 1,
-        widthMinPixels: 1,
-        getPath: d => d.path,
-        getColor: d => [200,160,60],
-        getWidth: d => 2
-      });
       
       
-      /*Path Layer*/
-      map.addLayer(myRoadDeckLayer);
-      map.addLayer(myRailwayDeckLayer);
-      map.addLayer(myContourDeckLayer);
       
+
       
       //FillExtrusion利用--------------------------------------------------
       //建物
-      if(building){
+      if(building && isShowBuilding){ 
+        
+        
+        //建物データの加工
+        for(i in building.features){
+            
+            var f = building.features[i];
+            
+            var height = f.properties["alti"];
+            
+            var color = 'hsl(0, 50%, 80%)';
+            var opacity = 1;
+            
+            var ftCode = f.properties["ftCode"];
+            if(ftCode == 3101 || ftCode == 3111 || ftCode == 4302){
+              height = height + 10;
+              color = (ftCode == 3111) ? 'hsl(0, 100%, 95%)' : color;
+            }else if(ftCode == 3102 || ftCode == 3112){
+              height = height + 40;
+              color = (ftCode == 3112) ? 'hsl(30, 100%, 95%)' : 'hsl(30, 100%, 80%)';
+            }else if(ftCode == 3103 || ftCode == 4301){
+              height = height + 100;
+              color = 'hsl(210, 100%, 90%)';
+            }
+            
+            building.features[i].properties["height"] = height;
+            building.features[i].properties["baseHeight"] = f.properties["alti"];
+            building.features[i].properties["color"] = color;
+        }
+        
         if(map.getLayer(buildingLayerID)){
             map.removeLayer(buildingLayerID);
         }
+        
+        if(map.getSource(buildingSourceID)){
+          map.removeSource(buildingSourceID);
+        }
+        
+        map.addSource(buildingSourceID, {
+            type: 'geojson',
+            data: building
+        });
+        
+        //レイヤの追加
         map.addLayer({
             id: buildingLayerID,
             type: 'fill-extrusion',
@@ -512,7 +551,8 @@ var addTerrain = function(){
         },
         elevationData: 'https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png',
         texture: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
-        color: [100,155,100]
+        color: [100,155,100],
+        meshMaxError: 6
       });    
       map.addLayer(myTerrainDeckLayer);
     }else{
