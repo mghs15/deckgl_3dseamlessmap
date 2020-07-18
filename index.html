@@ -4,7 +4,7 @@
 <meta charset='utf-8' />
 <title>3D Map</title>
 <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
-<script src="https://unpkg.com/deck.gl@^8.1.0/dist.min.js"></script>
+<script src="https://unpkg.com/deck.gl@latest/dist.min.js"></script>
 <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.11.1/mapbox-gl.js'></script>
 <script type="text/javascript">
   const {MapboxLayer, ScatterplotLayer, PathLayer, TerrainLayer, PolygonLayer} = deck;
@@ -65,8 +65,7 @@ button.local {
 
 <div id='map'></div>
 <div id='menu'>
-  <button type="button" class="local" name="terrain" onclick="addTerrain()" >地形</button>
-  
+  <button type="button" class="local" name="terrain" onclick="selectTerrain()" >地形</button>
   <button type="button" class="local" name="road" onclick="selectRoad()" >道路</button>
   <button type="button" class="local" name="railway" onclick="selectRailway()" >鉄道</button>
   <button type="button" class="local" name="building" onclick="selectBuilding()" >建物</button>
@@ -133,6 +132,8 @@ var isShowRailway = true;
 var isShowContour = true;
 var isShowBuilding = true;
 
+var isTerrainShow = false;//地形データ
+
 var selectRoad = function(){
   isShowRoad = !isShowRoad;
   refleshTiledJson();
@@ -153,6 +154,16 @@ var selectBuilding = function(){
   refleshTiledJson();
 }
 
+//地形データ
+var selectTerrain = function(){
+  if(isTerrainShow){
+    removeTerrainImages();
+  }else{
+    changeTerainImages();
+  }
+  
+  isTerrainShow = !isTerrainShow;
+}
 
 
 /*************************************************/
@@ -163,15 +174,33 @@ var selectBuilding = function(){
 var long2tile = function(lon,zoom) { return ((lon+180)/360*Math.pow(2,zoom)); }
 var lat2tile = function(lat,zoom)  { return ((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom)); }
 
+function tile2long(x,z) {
+  return (x/Math.pow(2,z)*360-180);
+}
+function tile2lat(y,z) {
+  var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
+  return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
+}
+
+
 //読み込んだタイルリスト
-var loadedTileList = [];
+var loadedTileList = []; //JSON
+var loadedTerrainTileList = []; //Terrain
 
 //移動時に読み込み処理
 map.on('moveend', function(){
-  changeTiledJson();
+  changeTiledJson(); //JSONデータ
+  if(isTerrainShow){
+    changeTerainImages(); //Terrainデータ
+  }
 });
 
+
+/*************************************************/
+/*DeckGL レイヤ(JSONデータ)関係設定              */
+/*************************************************/
 //表示タイルリストの更新とそれに合わせたタイルの削除と追加
+//地形データは別管理
 var changeTiledJson = function(){
     
     var zl = 15; //3Dデータが存在するZL
@@ -208,7 +237,7 @@ var changeTiledJson = function(){
     
     for(i in loadedTileList){
       if(!newTiledJsonList.includes(loadedTileList[i]) || tmpzl < minzoom){  // loadedTileList[i] が newTiledJsonList になかったら
-        removeTiledJson(loadedTileList[i]);
+        removeTiledJson(loadedTileList[i]); 
       }
     }
     
@@ -235,11 +264,6 @@ var refleshTiledJson = function(){
     }
     
 };
-
-/*************************************************/
-/*DeckGL レイヤ関係設定                          */
-/*************************************************/
-
 
 //データを削除
 var removeTiledJson = function(filename){
@@ -276,7 +300,7 @@ var removeTiledJson = function(filename){
 }
 
 
-//データの読み込み
+//データの読み込みと描画処理
 var loadTiledJson = function(filename){
     
     /*
@@ -451,9 +475,6 @@ var loadTiledJson = function(filename){
       }
       
       
-      
-
-      
       //FillExtrusion利用--------------------------------------------------
       //建物
       if(building && isShowBuilding){ 
@@ -518,51 +539,119 @@ var loadTiledJson = function(filename){
     
 }
 
+/*************************************************/
+/*Terrain レイヤ関係設定                         */
+/*************************************************/
 
-//地形データ
-var isTerrainShow = false;
-
-var addTerrain = function(){
-    if(!isTerrainShow){
+var changeTerainImages = function(){
+    
+    var zl = 14; //標高タイルが存在する最大ZL
+    
+    var tmpzl = map.getZoom();
+    
+    if(tmpzl < zl){ //最大ZLよりも現在のZLが小さければ、現在のZLを利用
+       zl = Math.floor(tmpzl);
+    }
+    console.log("標高タイルを読み込むzl", zl);
+    
+    var minzoom = 2; //標高タイルを読み込む最小ZL
+    
+    var newTiledJsonList = [];
+    
+    if(tmpzl >= minzoom){
+    
+      var bounds = map.getBounds();
       
-      //エラー処理
-      var styleLoadStatus = map.isStyleLoaded();
-      if(!styleLoadStatus){
-        alert("まだ、スタイルが読み込めていません。");
-      }
+      var tileXw = Math.floor(long2tile(bounds._sw.lng, zl));
+      var tileXe = Math.floor(long2tile(bounds._ne.lng, zl));
       
-      if(map.getZoom() > 14.5){
-        alert("地形表示はZL14.5未満でできます。");
-        return;
+      var tileYn = Math.floor(lat2tile(bounds._ne.lat, zl));
+      var tileYs = Math.floor(lat2tile(bounds._sw.lat, zl));
+      
+      console.log(tileXw, tileXe, tileYn, tileYs, tmpzl);
+      
+      for(var i=tileXw; i <= tileXe; i++){
+        for(var j=tileYn; j <= tileYs; j++){
+          var zxy = [zl, i, j];
+          newTiledJsonList.push(zxy); //TiledJSONと異なりzxyで管理
+        }
       }
     
-      //地形
-      if(map.getLayer('terrain-layer')){
-        map.removeLayer('terrain-layer');
-      }
-      const myTerrainDeckLayer = new MapboxLayer({
-        id: 'terrain-layer',
-        type: TerrainLayer,
-        elevationDecoder: {
-          rScaler: Math.pow(2,16)*0.01,
-          gScaler: Math.pow(2,8)*0.01,
-          bScaler: 0.01,
-          offset: 0
-        },
-        elevationData: 'https://cyberjapandata.gsi.go.jp/xyz/dem_png/{z}/{x}/{y}.png',
-        texture: 'https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg',
-        color: [100,155,100],
-        meshMaxError: 6
-      });    
-      map.addLayer(myTerrainDeckLayer);
-    }else{
-      if(map.getLayer('terrain-layer')){
-        map.removeLayer('terrain-layer');
+    }
+    
+    //タイルの削除と追加
+    console.log(loadedTerrainTileList);//loadedTerrainTileListはグローバル変数
+    
+    for(i in loadedTerrainTileList){
+      if(!newTiledJsonList.includes(loadedTerrainTileList[i]) || tmpzl < minzoom){  // loadedTerrainTileList[i] が newTiledJsonList になかったら
+        
+        //removeTiledJson()に相当
+        //loadedTerrainTileListにはzxyで格納しているので、IDに変換
+        var terrainLayerID = 'terrain-layer-image-' + loadedTerrainTileList[i][0] + "-" + loadedTerrainTileList[i][1] + "-" + loadedTerrainTileList[i][2];
+        if(map.getLayer(terrainLayerID)){
+            map.removeLayer(terrainLayerID);
+        }
+        
       }
     }
     
-    isTerrainShow = !isTerrainShow;
+    for(i in newTiledJsonList){
+    
+      if(!loadedTerrainTileList.includes(newTiledJsonList[i]) && tmpzl >= minzoom){  // newTiledJsonList[i] が loadedTerrainTileList になかったら
+        
+        //loadTiledJson()に相当
+        //loadedTerrainTileListにはzxyで格納しているので、IDやファイル名に変換
+        var terrainLayerID = 'terrain-layer-image-' + newTiledJsonList[i][0] + "-" + newTiledJsonList[i][1] + "-" + newTiledJsonList[i][2];
+        var terrainImageBound = [
+          tile2long(newTiledJsonList[i][1],newTiledJsonList[i][0]), 
+          tile2lat(newTiledJsonList[i][2]+1,newTiledJsonList[i][0]),
+          tile2long(newTiledJsonList[i][1]+1,newTiledJsonList[i][0]), 
+          tile2lat(newTiledJsonList[i][2],newTiledJsonList[i][0])
+        ];
+        //zxyで格納しているので、ファイルパスに変換
+        var demUrl = 'https://cyberjapandata.gsi.go.jp/xyz/dem_png/' + newTiledJsonList[i][0] + "/" + newTiledJsonList[i][1] + "/" + newTiledJsonList[i][2] + '.png';
+        var textureUrl = 'https://cyberjapandata.gsi.go.jp/xyz/dem_png/' + newTiledJsonList[i][0] + "/" + newTiledJsonList[i][1] + "/" + newTiledJsonList[i][2] + '.png';
+        
+        if(map.getLayer(terrainLayerID)){
+            map.removeLayer(terrainLayerID);
+        }
+        const myTerrainDeckLayer = new MapboxLayer({
+          id: terrainLayerID,
+          type: TerrainLayer,
+          elevationDecoder: {
+            rScaler: Math.pow(2,16)*0.01,
+            gScaler: Math.pow(2,8)*0.01,
+            bScaler: 0.01,
+            offset: 0
+          },
+          
+          elevationData: demUrl,
+          //texture: textureUrl,
+          bounds: terrainImageBound,
+          color: [100,155,100],
+          meshMaxError: 1
+        });    
+        map.addLayer(myTerrainDeckLayer);
+      }
+    }
+    
+    loadedTerrainTileList = newTiledJsonList;
+    console.log(loadedTerrainTileList);
 }
+
+//地形の削除
+var removeTerrainImages = function(){
+    
+    for(i in loadedTerrainTileList){
+        //loadedTerrainTileListにはzxyで格納しているので、IDに変換
+        var terrainLayerID = 'terrain-layer-image-' + loadedTerrainTileList[i][0] + "-" + loadedTerrainTileList[i][1] + "-" + loadedTerrainTileList[i][2];
+        
+        if(map.getLayer(terrainLayerID)){
+            map.removeLayer(terrainLayerID);
+        }
+    }
+    
+};
 
 
 </script>

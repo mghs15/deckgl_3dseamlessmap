@@ -38,6 +38,7 @@ https://github.com/mghs15/3dTiledJSON
 ## 参考にした資料
 ### データ
 * 国土地理院 地理院地図Vector https://maps.gsi.go.jp/vector/
+* 国土地理院 地理院タイル（標高タイル） https://maps.gsi.go.jp/development/ichiran.html#dem
 
 ### 利用ライブラリ
 * deck.gl https://deck.gl/
