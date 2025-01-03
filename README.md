@@ -1,6 +1,8 @@
 # deckgl_3dseamlessmap
 地理院地図Vectorのデータを、deck.glで3Dっぽくシームレスに表示するサンプル。
 
+blog: https://qiita.com/mg_kudo/items/6079ac10b7994e391228
+
 ## 3Dサンプル
 筑波山周辺の3Dデータを表示します。
 
