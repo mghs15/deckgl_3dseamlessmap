@@ -1,7 +1,8 @@
 # deckgl_3dseamlessmap
 地理院地図Vectorのデータを、deck.glで3Dっぽくシームレスに表示するサンプル。
 
-blog: https://qiita.com/mg_kudo/items/6079ac10b7994e391228
+> [!TIP]
+> blog: https://qiita.com/mg_kudo/items/6079ac10b7994e391228
 
 > [!NOTE]
 > 改良版レポジトリ https://github.com/mghs15/deckgl-3dmap-maplibre
