@@ -3,6 +3,12 @@
 
 blog: https://qiita.com/mg_kudo/items/6079ac10b7994e391228
 
+> [!NOTE]
+> 改良版レポジトリ https://github.com/mghs15/deckgl-3dmap-maplibre
+> * ライブラリを最新化（2025/1月時点）
+> * 標高タイルを用いて Z 値を付与
+> * 水域や注記・記号も3次元風に表示可能
+
 ## 3Dサンプル
 筑波山周辺の3Dデータを表示します。
 
